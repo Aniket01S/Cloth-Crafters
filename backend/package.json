@@ -1,0 +1,10 @@
+{
+  "name": "cloth-crafters-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Cloth Crafters App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {}
+}
