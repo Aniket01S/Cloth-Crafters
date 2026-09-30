@@ -113,6 +113,30 @@ class _OpenOrdersScreenState extends State<OpenOrdersScreen> {
     );
   }
 
+  Widget _buildBase64Image(String? base64Str, String label, BuildContext context) {
+    if (base64Str == null || base64Str.isEmpty || !base64Str.startsWith('data:image')) return const SizedBox.shrink();
+    try {
+      final bytes = base64Decode(base64Str.split(',').last);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 12),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => showFullScreenImageDialog(context, base64Str),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(bytes, height: 120, width: double.infinity, fit: BoxFit.cover),
+            ),
+          ),
+        ],
+      );
+    } catch (e) {
+      return const SizedBox.shrink();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -244,6 +268,10 @@ class _OpenOrdersScreenState extends State<OpenOrdersScreen> {
                                           style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5, fontStyle: FontStyle.italic),
                                         ),
                                       ],
+                                      if (order['material_image'] != null)
+                                        _buildBase64Image(order['material_image'], 'Material Image', context),
+                                      if (order['design_image'] != null)
+                                        _buildBase64Image(order['design_image'], 'Design Image', context),
                                       const SizedBox(height: 24),
                                       Row(
                                         children: [

@@ -19,7 +19,8 @@ class _CustomizeClothesScreenState extends State<CustomizeClothesScreen> {
   String selectedCategory = 'Jeans';
   List<String> categories = ['Jeans', 'Top', 'Shirt', 'Western', 'Others'];
 
-  File? _selectedImage;
+  File? _materialImage;
+  File? _designImage;
   final ImagePicker _picker = ImagePicker();
   final TextEditingController _messageController = TextEditingController();
   stt.SpeechToText _speech = stt.SpeechToText();
@@ -144,31 +145,43 @@ class _CustomizeClothesScreenState extends State<CustomizeClothesScreen> {
 
   Future<void> _uploadCustomizeClothes() async {
     final uri = Uri.parse('$apiUrl/customize_clothes');
-    final request = http.MultipartRequest('POST', uri)
-      ..fields['email'] = CurrentState.email // Replace with actual email
-      ..fields['category'] = selectedCategory
-      ..fields['design_inspiration'] = _messageController.text;
-
-    if (selectedBoutiqueEmail != null) {
-      request.fields['boutique_email'] = selectedBoutiqueEmail!;
+    
+    String? materialBase64;
+    if (_materialImage != null) {
+      final bytes = await _materialImage!.readAsBytes();
+      materialBase64 = 'data:image/jpeg;base64,${base64Encode(bytes)}';
     }
 
-    if (_selectedImage != null) {
-      final imageStream = http.ByteStream(_selectedImage!.openRead());
-      final imageLength = await _selectedImage!.length();
-      final imageFile = http.MultipartFile('image', imageStream, imageLength, filename: basename(_selectedImage!.path));
-      request.files.add(imageFile);
+    String? designBase64;
+    if (_designImage != null) {
+      final bytes = await _designImage!.readAsBytes();
+      designBase64 = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+    }
+
+    final bodyData = {
+      'email': CurrentState.email,
+      'category': selectedCategory,
+      'design_inspiration': _messageController.text,
+      'material_image': materialBase64,
+      'design_image': designBase64,
+    };
+
+    if (selectedBoutiqueEmail != null) {
+      bodyData['boutique_email'] = selectedBoutiqueEmail;
     }
 
     try {
-      final response = await request.send();
-      final responseBody = await response.stream.bytesToString(); // Get the response body as a string
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(bodyData),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         showSnackbarMessage(curr, 'Customization request successful!');
         Navigator.pop(curr);
       } else {
-        showSnackbarMessage(curr, 'Failed to submit customization request: ${responseBody}');
+        showSnackbarMessage(curr, 'Failed to submit customization request: ${response.body}');
       }
     } catch (e) {
       showSnackbarMessage(curr, 'An error occurred: ${e.toString()}');
@@ -205,7 +218,9 @@ class _CustomizeClothesScreenState extends State<CustomizeClothesScreen> {
                       });
                     }),
                     SizedBox(height: 40),
-                    buildImageUploadSection(),
+                    buildImageUploadSection("Attach your material image", _materialImage, true),
+                    SizedBox(height: 20),
+                    buildImageUploadSection("Attach your desired design inspiration", _designImage, false),
                     SizedBox(height: 20),
                     buildMessageTextField(),
                     SizedBox(height: 20),
@@ -220,8 +235,8 @@ class _CustomizeClothesScreenState extends State<CustomizeClothesScreen> {
             child: RoundedButton(
               title: 'Customize It',
               onTap: () {
-                if (_selectedImage == null || _messageController.text.trim().isEmpty) {
-                  showSnackbarMessage(context, "Please provide necessary details");
+                if ((_materialImage == null && _designImage == null) || _messageController.text.trim().isEmpty) {
+                  showSnackbarMessage(context, "Please provide necessary details (at least one image)");
                 } else {
                   _uploadCustomizeClothes();
                 }
@@ -287,21 +302,25 @@ class _CustomizeClothesScreenState extends State<CustomizeClothesScreen> {
     );
   }
 
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+  Future<void> _pickImage(bool isMaterial) async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 30, maxWidth: 800, maxHeight: 800);
     if (pickedFile != null) {
       setState(() {
-        _selectedImage = File(pickedFile.path);
+        if (isMaterial) {
+          _materialImage = File(pickedFile.path);
+        } else {
+          _designImage = File(pickedFile.path);
+        }
       });
     }
   }
 
-  Widget buildImageUploadSection() {
+  Widget buildImageUploadSection(String title, File? image, bool isMaterial) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Attach your desired design inspiration",
+          title,
           style: TextStyle(fontSize: 16),
         ),
         SizedBox(height: 10),
@@ -314,7 +333,7 @@ class _CustomizeClothesScreenState extends State<CustomizeClothesScreen> {
           child: Row(
             children: [
               InkWell(
-                onTap: _pickImage,
+                onTap: () => _pickImage(isMaterial),
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Container(
@@ -336,12 +355,12 @@ class _CustomizeClothesScreenState extends State<CustomizeClothesScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: _selectedImage == null
+                  child: image == null
                       ? Center(child: Text("No image selected"))
                       : ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: Image.file(
-                      _selectedImage!,
+                      image,
                       fit: BoxFit.contain,  // Use contain to ensure the entire image fits within the box
                       width: double.infinity,
                     ),

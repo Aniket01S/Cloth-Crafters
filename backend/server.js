@@ -493,6 +493,8 @@ const server = http.createServer((req, res) => {
           type: 'Customization',
           category: category,
           description: description,
+          material_image: jsonBody.material_image || null,
+          design_image: jsonBody.design_image || null,
           status: 'Pending',
           progress: '0%',
           boutique_email: boutiqueEmail
@@ -777,12 +779,15 @@ const server = http.createServer((req, res) => {
     }
 
     if (path === '/orders/progress' && req.method === 'PUT') {
-      const { order_id, progress } = jsonBody;
+      const { order_id, progress, completed_image } = jsonBody;
       const order = orders.find(o => o.order_id === order_id);
       if (order) {
         order.progress = progress;
         if (progress === '100%') {
           order.status = 'Completed';
+        }
+        if (completed_image) {
+          order.completed_image = completed_image;
         }
 
         if (order.customer_email) {

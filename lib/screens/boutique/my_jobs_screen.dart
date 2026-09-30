@@ -5,6 +5,8 @@ import 'package:tailor_app/utility.dart';
 import 'package:tailor_app/constants.dart';
 import 'package:tailor_app/screens/chat_screen.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:tailor_app/screens/design_analyzer_dialog.dart';
 
 class MyJobsScreen extends StatefulWidget {
   @override
@@ -42,12 +44,16 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
     }
   }
 
-  Future<void> updateProgress(String orderId, String newProgress) async {
+  Future<void> updateProgress(String orderId, String newProgress, {String? imageBase64}) async {
     try {
+      final body = {'order_id': orderId, 'progress': newProgress};
+      if (imageBase64 != null) {
+        body['completed_image'] = imageBase64;
+      }
       final response = await http.put(
         Uri.parse('$apiUrl/orders/progress'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'order_id': orderId, 'progress': newProgress})
+        body: jsonEncode(body)
       );
       if (!mounted) return;
       if (response.statusCode == 200) {
@@ -57,6 +63,42 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
     } catch (e) {
       print('Error updating progress: $e');
     }
+  }
+
+  Future<void> _onProgressChanged(String orderId, String newValue) async {
+    if (newValue == '100%') {
+      bool? wantToUpload = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          title: const Text("Upload Completed Work Photo?"),
+          content: const Text("Would you like to upload a photo of the completed outfit to show the customer?"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("No", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Yes"),
+            )
+          ],
+        ),
+      );
+
+      if (wantToUpload == true) {
+        final ImagePicker picker = ImagePicker();
+        final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 30, maxWidth: 800, maxHeight: 800);
+        if (image != null) {
+          final bytes = await image.readAsBytes();
+          String base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+          updateProgress(orderId, newValue, imageBase64: base64Image);
+          return;
+        }
+      }
+    }
+    updateProgress(orderId, newValue);
   }
 
   Future<void> acceptJob(String orderId) async {
@@ -132,6 +174,30 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
         ],
       )
     );
+  }
+
+  Widget _buildBase64Image(String? base64Str, String label, BuildContext context) {
+    if (base64Str == null || base64Str.isEmpty || !base64Str.startsWith('data:image')) return const SizedBox.shrink();
+    try {
+      final bytes = base64Decode(base64Str.split(',').last);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 12),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => showFullScreenImageDialog(context, base64Str),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(bytes, height: 120, width: double.infinity, fit: BoxFit.cover),
+            ),
+          ),
+        ],
+      );
+    } catch (e) {
+      return const SizedBox.shrink();
+    }
   }
 
   @override
@@ -363,6 +429,12 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
                           style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5, fontStyle: FontStyle.italic),
                         ),
                       ],
+                      if (job['material_image'] != null)
+                        _buildBase64Image(job['material_image'], 'Material Image', context),
+                      if (job['design_image'] != null)
+                        _buildBase64Image(job['design_image'], 'Design Image', context),
+                      if (job['completed_image'] != null)
+                        _buildBase64Image(job['completed_image'], 'Completed Work', context),
 
                       // Action views based on status
                       if (isPending) ...[
@@ -426,7 +498,7 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
                                     }).toList(),
                                     onChanged: (newValue) {
                                       if (newValue != null) {
-                                        updateProgress(job['order_id'], newValue);
+                                        _onProgressChanged(job['order_id'], newValue);
                                       }
                                     },
                                   ),
@@ -458,6 +530,31 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
                             ),
                           ],
                         ),
+                        if (isCompleted && job['design_image'] != null && job['completed_image'] != null) ...[
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => DesignAnalyzerDialog(
+                                    designImageBase64: job['design_image'],
+                                    completedImageBase64: job['completed_image'],
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.auto_awesome),
+                              label: const Text('AI MATCH ANALYSIS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.indigo,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                              ),
+                            ),
+                          )
+                        ],
                       ],
                     ],
                   ),

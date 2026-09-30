@@ -292,7 +292,7 @@ class _AlterClothesScreenState extends State<AlterClothesScreen> {
   }
 
   Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 30, maxWidth: 800, maxHeight: 800);
     if (pickedFile != null) {
       setState(() {
         _selectedImage = File(pickedFile.path);

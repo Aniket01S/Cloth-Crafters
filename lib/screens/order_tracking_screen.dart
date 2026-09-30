@@ -5,6 +5,7 @@ import 'package:tailor_app/utility.dart';
 import 'package:tailor_app/constants.dart';
 import 'package:tailor_app/screens/chat_screen.dart';
 import 'package:tailor_app/screens/boutique_detail_screen.dart';
+import 'package:tailor_app/screens/design_analyzer_dialog.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
   @override
@@ -38,6 +39,30 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     } catch (e) {
       print('Error fetching orders: $e');
       setState(() { isLoading = false; });
+    }
+  }
+
+  Widget _buildBase64Image(String? base64Str, String label, BuildContext context) {
+    if (base64Str == null || base64Str.isEmpty || !base64Str.startsWith('data:image')) return const SizedBox.shrink();
+    try {
+      final bytes = base64Decode(base64Str.split(',').last);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          const SizedBox(height: 4),
+          GestureDetector(
+            onTap: () => showFullScreenImageDialog(context, base64Str),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(bytes, height: 120, width: double.infinity, fit: BoxFit.cover),
+            ),
+          ),
+        ],
+      );
+    } catch (e) {
+      return const SizedBox.shrink();
     }
   }
 
@@ -81,6 +106,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                               SizedBox(height: 4),
                               Text('Details: ${order['description']}', style: TextStyle(color: Colors.grey[700])),
                             ],
+                            if (order['material_image'] != null)
+                              _buildBase64Image(order['material_image'], 'Material Image', context),
+                            if (order['design_image'] != null)
+                              _buildBase64Image(order['design_image'], 'Design Image', context),
+                            if (order['completed_image'] != null)
+                              _buildBase64Image(order['completed_image'], 'Completed Work', context),
                             if (order['status'] == 'Rejected') ...[
                               SizedBox(height: 16),
                               Text('This order was rejected by the boutique.', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
@@ -95,8 +126,11 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                                 minHeight: 8,
                               ),
                               SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   ElevatedButton.icon(
                                     onPressed: () {
@@ -138,6 +172,25 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                                       icon: Icon(Icons.star, color: Colors.amber, size: 16),
                                       label: Text('Rate & Review', style: TextStyle(fontSize: 12, color: Colors.black87)),
                                       style: OutlinedButton.styleFrom(
+                                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      ),
+                                    ),
+                                  if (order['progress'] == '100%' && order['design_image'] != null && order['completed_image'] != null)
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (_) => DesignAnalyzerDialog(
+                                            designImageBase64: order['design_image'],
+                                            completedImageBase64: order['completed_image'],
+                                          ),
+                                        );
+                                      },
+                                      icon: Icon(Icons.auto_awesome, size: 16),
+                                      label: Text('AI Analysis', style: TextStyle(fontSize: 12)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.indigo,
+                                        foregroundColor: Colors.white,
                                         padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       ),
                                     ),

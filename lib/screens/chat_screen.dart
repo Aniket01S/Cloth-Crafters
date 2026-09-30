@@ -90,7 +90,7 @@ class _ChatScreenState extends State<ChatScreen> {
         source: source,
         maxWidth: 800,
         maxHeight: 800,
-        imageQuality: 70,
+        imageQuality: 30,
       );
       if (pickedFile != null) {
         setState(() {
